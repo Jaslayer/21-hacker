@@ -31,31 +31,35 @@ class ModeAppTab212:
         self.frame = frame
         self.mode = None
         self.sequence = []
+        self.edit_mode = False  # Track if in edit mode
+        self.item_buttons = []  # Store item buttons for dynamic updates
+        self.region212 = ["左", "中", "右"]  # Labels for the region buttons
 
         # Mode Buttons
         self.mode_frame = tk.Frame(frame)
         self.mode_frame.pack(pady=10)
 
-        self.left_button = tk.Button(self.mode_frame, text="左", font=("Arial", 14), width=8, command=lambda: self.set_mode("左"))
-        self.left_button.pack(side=tk.LEFT, padx=(125,5))
+        self.settings_button = tk.Button(self.mode_frame, text="設定", font=("Arial", 14), width=5, command=self.toggle_edit_mode)
+        self.settings_button.pack(side=tk.LEFT, padx=(5, 5))
 
-        self.middle_button = tk.Button(self.mode_frame, text="中", font=("Arial", 14), width=8, command=lambda: self.set_mode("中"))
-        self.middle_button.pack(side=tk.LEFT, padx=5)
-
-        self.right_button = tk.Button(self.mode_frame, text="右", font=("Arial", 14), width=8, command=lambda: self.set_mode("右"))
-        self.right_button.pack(side=tk.LEFT, padx=(5,50))
+        self.region_buttons = []  # Store region buttons for dynamic updates
+        for region in self.region212:
+            btn = tk.Button(self.mode_frame, text=region, font=("Arial", 14), width=8, command=lambda r=region: self.set_mode(r))
+            btn.pack(side=tk.LEFT, padx=5)
+            self.region_buttons.append(btn)
 
         self.clear_button = tk.Button(self.mode_frame, text="清除", font=("Arial", 14), width=5, bg="red", fg="white", command=self.clear_all)
-        self.clear_button.pack(side=tk.LEFT, padx=5)
+        self.clear_button.pack(side=tk.LEFT, padx=(50, 5))
 
         # Item Buttons
         self.items_frame = tk.Frame(frame)
         self.items_frame.pack(pady=10)
 
-        self.items = ["空", "椅", "沙", "壺", "鐘", "燈", "鏡"]
+        self.items = ["X", "椅", "沙", "壺", "鐘", "燈", "鏡"]
         for item in self.items:
             btn = tk.Button(self.items_frame, text=item, font=("Arial", 12), width=4, command=lambda i=item: self.add_item(i))
             btn.pack(side=tk.LEFT, padx=5)
+            self.item_buttons.append(btn)
 
         self.backspace_button = tk.Button(self.items_frame, text="倒退", font=("Arial", 12), command=self.backspace)
         self.backspace_button.pack(side=tk.LEFT, padx=5)
@@ -97,16 +101,12 @@ class ModeAppTab212:
         self.update_sequence_label()
 
     def update_mode_buttons(self):
-        self.left_button.config(bg="SystemButtonFace")
-        self.middle_button.config(bg="SystemButtonFace")
-        self.right_button.config(bg="SystemButtonFace")
+        for btn in self.region_buttons:
+            btn.config(bg="SystemButtonFace")
 
-        if self.mode == "左":
-            self.left_button.config(bg="lightblue")
-        elif self.mode == "中":
-            self.middle_button.config(bg="lightblue")
-        elif self.mode == "右":
-            self.right_button.config(bg="lightblue")
+        if self.mode in self.region212:
+            index = self.region212.index(self.mode)
+            self.region_buttons[index].config(bg="lightblue")
 
     def add_item(self, item):
         if len(self.sequence) < 12:
@@ -133,15 +133,19 @@ class ModeAppTab212:
             self.message_label.config(text="請先選擇區域！", fg="red")
             return
 
-        if len(self.sequence) != 12:
-            self.message_label.config(text="請輸入完整的12個物品！", fg="red")
+        # Count the number of "X" placeholders in the format string
+        format_string = self.format_entry.get()
+        x_count = format_string.count("X")
+
+        if len(self.sequence) < x_count:
+            self.message_label.config(text=f"請至少輸入{x_count}個物品！", fg="red")
             return
 
-        format_string = self.format_entry.get()
-        result = format_string.replace("O", self.mode).replace("X", "{}").format(*self.sequence)
+        # Format the result using the entered sequence
+        result = format_string.replace("O", self.mode).replace("X", "{}").format(*self.sequence[:x_count])
         self.frame.clipboard_clear()
         self.frame.clipboard_append(result)
-        self.frame.update()
+        self.frame.update()  # Update clipboard
         self.message_label.config(text="結果已複製到剪貼簿！", fg="green")
 
     def clear_all(self):      
@@ -151,37 +155,98 @@ class ModeAppTab212:
         self.update_sequence_label()
         self.message_label.config(text="已清除所有內容！", fg="green")
 
+    def toggle_edit_mode(self):
+        self.edit_mode = not self.edit_mode
+        if self.edit_mode:
+            self.mode = None
+            self.settings_button.config(text="儲存")
+            self.copy_button.config(state=tk.DISABLED)  # Disable the "複製結果" button
+
+            # Replace region buttons with entry boxes
+            for btn in self.region_buttons:
+                btn.pack_forget()
+
+            self.region_entries = []
+            for region in self.region212:
+                entry = tk.Entry(self.mode_frame, font=("Arial", 14), width=8)
+                entry.insert(0, region)
+                entry.pack(side=tk.LEFT, padx=5)
+                self.region_entries.append(entry)
+
+            self.clear_button.pack_forget()  # Remove the old "清除" button
+
+            # Replace item buttons with entry boxes
+            self.backspace_button.pack_forget()
+            for i, btn in enumerate(self.item_buttons):
+                btn.pack_forget()
+                entry = tk.Entry(self.items_frame, font=("Arial", 12), width=4)
+                entry.insert(0, self.items[i])
+                entry.pack(side=tk.LEFT, padx=5)
+                self.item_buttons[i] = entry
+        else:
+            self.settings_button.config(text="設定")
+            self.copy_button.config(state=tk.NORMAL)  # Enable the "複製結果" button
+
+            # Save changes and restore region buttons
+            self.region212 = [entry.get() for entry in self.region_entries]
+            for entry in self.region_entries:
+                entry.pack_forget()
+
+            self.region_buttons = []
+            for region in self.region212:
+                btn = tk.Button(self.mode_frame, text=region, font=("Arial", 14), width=8, command=lambda r=region: self.set_mode(r))
+                btn.pack(side=tk.LEFT, padx=5)
+                self.region_buttons.append(btn)
+
+            # Add the "清除" button to the right of the last region button
+            self.clear_button = tk.Button(self.mode_frame, text="清除", font=("Arial", 14), width=5, bg="red", fg="white", command=self.clear_all)
+            self.clear_button.pack(side=tk.LEFT, padx=(50, 5))
+
+            # Save changes and restore item buttons
+            for i, entry in enumerate(self.item_buttons):
+                self.items[i] = entry.get()
+                entry.pack_forget()
+                btn = tk.Button(self.items_frame, text=self.items[i], font=("Arial", 12), width=4, command=lambda i=self.items[i]: self.add_item(i))
+                btn.pack(side=tk.LEFT, padx=5)
+                self.item_buttons[i] = btn
+
+            self.backspace_button = tk.Button(self.items_frame, text="倒退", font=("Arial", 12), command=self.backspace)
+            self.backspace_button.pack(side=tk.LEFT, padx=5)
+
 class ModeAppTab214:
     def __init__(self, frame):
-        # Placeholder for 214R2 functionality
         self.frame = frame
-        # Implement the functionality for the 214R2 tab here
         self.mode = None
         self.sequence = []
+        self.edit_mode = False  # Track if in edit mode
+        self.item_buttons = []  # Store item buttons for dynamic updates
+        self.region214 = ["上", "下"]  # Labels for the region buttons
+        self.items = ["-", "1", "2", "3", "4", "5", "6", "7", "8"]
 
         # Mode Buttons
         self.mode_frame = tk.Frame(frame)
         self.mode_frame.pack(pady=10)
 
-        # 上 and 下 Buttons
-        self.up_button = tk.Button(self.mode_frame, text="上", font=("Arial", 14), width=8, command=lambda: self.set_mode("上"))
-        self.up_button.pack(side=tk.LEFT, padx=(125, 5))
+        self.settings_button = tk.Button(self.mode_frame, text="設定", font=("Arial", 14), width=5, command=self.toggle_edit_mode)
+        self.settings_button.pack(side=tk.LEFT, padx=(5, 5))
 
-        self.down_button = tk.Button(self.mode_frame, text="下", font=("Arial", 14), width=8, command=lambda: self.set_mode("下"))
-        self.down_button.pack(side=tk.LEFT, padx=(5, 50))
+        self.region_buttons = []  # Store region buttons for dynamic updates
+        for region in self.region214:
+            btn = tk.Button(self.mode_frame, text=region, font=("Arial", 14), width=8, command=lambda r=region: self.set_mode(r))
+            btn.pack(side=tk.LEFT, padx=(5, 5))
+            self.region_buttons.append(btn)
 
-        # Clear Button
         self.clear_button = tk.Button(self.mode_frame, text="清除", font=("Arial", 14), width=5, bg="red", fg="white", command=self.clear_all)
-        self.clear_button.pack(side=tk.LEFT, padx=5)
+        self.clear_button.pack(side=tk.LEFT, padx=(50, 5))
 
         # Item Buttons
         self.items_frame = tk.Frame(frame)
         self.items_frame.pack(pady=10)
 
-        self.items = ["-", "1", "2", "3", "4", "5", "6", "7", "8"]
         for item in self.items:
             btn = tk.Button(self.items_frame, text=item, font=("Arial", 12), width=4, command=lambda i=item: self.add_item(i))
             btn.pack(side=tk.LEFT, padx=5)
+            self.item_buttons.append(btn)
 
         self.backspace_button = tk.Button(self.items_frame, text="倒退", font=("Arial", 12), command=self.backspace)
         self.backspace_button.pack(side=tk.LEFT, padx=5)
@@ -194,15 +259,15 @@ class ModeAppTab214:
         self.number_labels = []
         for col in range(8):
             label = tk.Label(self.sequence_frame, text=f"{col + 1}", font=("Arial", 12), width=4, anchor="center")
-            label.grid(row=0, column=col, padx=2, pady=2) 
+            label.grid(row=0, column=col, padx=2, pady=2)
             self.number_labels.append(label)
 
         # Second row: Items with group separators
         self.sequence_labels = []
         for col in range(8):
-            bg_color = "lightgray" if col in [2,3,6,7] else "white"  # Set background color for 3,4,7,8
+            bg_color = "lightgray" if col in [2, 3, 6, 7] else "white"  # Set background color for 3,4,7,8
             label = tk.Label(self.sequence_frame, text="", font=("Arial", 12), width=5, anchor="center", relief="solid", bg=bg_color)
-            label.grid(row=1, column=col, padx=2, pady=2) 
+            label.grid(row=1, column=col, padx=2, pady=2)
             self.sequence_labels.append(label)
 
         # Format Input and Copy Button
@@ -227,14 +292,13 @@ class ModeAppTab214:
 
     def update_mode_buttons(self):
         # Reset all buttons to default color
-        self.up_button.config(bg="SystemButtonFace")
-        self.down_button.config(bg="SystemButtonFace")
+        for btn in self.region_buttons:
+            btn.config(bg="SystemButtonFace")
 
         # Highlight the selected mode button
-        if self.mode == "上":
-            self.up_button.config(bg="lightblue")
-        elif self.mode == "下":
-            self.down_button.config(bg="lightblue")
+        if self.mode in self.region214:
+            index = self.region214.index(self.mode)
+            self.region_buttons[index].config(bg="lightblue")
 
     def add_item(self, item):
         if len(self.sequence) < 8:
@@ -262,24 +326,83 @@ class ModeAppTab214:
             self.message_label.config(text="請先選擇區域！", fg="red")
             return
 
-        if len(self.sequence) != 8:
-            self.message_label.config(text="請輸入完整的8個數字！", fg="red")
+        format_string = self.format_entry.get()
+        x_count = format_string.count("X")
+
+        if len(self.sequence) < x_count:
+            self.message_label.config(text=f"請至少輸入{x_count}個數字！", fg="red")
             return
 
-        format_string = self.format_entry.get()
-        result = format_string.replace("O", self.mode).replace("X", "{}").format(*self.sequence)
+        result = format_string.replace("O", self.mode).replace("X", "{}").format(*self.sequence[:x_count])
         self.frame.clipboard_clear()
         self.frame.clipboard_append(result)
         self.frame.update()  # 更新剪貼簿
         self.message_label.config(text="結果已複製到剪貼簿！", fg="green")
 
-    def clear_all(self):      
+    def clear_all(self):
         self.mode = None
         self.sequence = []
         self.update_mode_buttons()
         self.update_sequence_label()
         self.message_label.config(text="已清除所有內容！", fg="green")
 
+    def toggle_edit_mode(self):
+        self.edit_mode = not self.edit_mode
+        if self.edit_mode:
+            self.mode = None
+            self.settings_button.config(text="儲存")
+            self.copy_button.config(state=tk.DISABLED)  # Disable the "複製結果" button
+
+            # Replace region buttons with entry boxes
+            self.backspace_button.pack_forget()
+            for btn in self.region_buttons:
+                btn.pack_forget()
+
+            self.region_entries = []
+            for region in self.region214:
+                entry = tk.Entry(self.mode_frame, font=("Arial", 14), width=8)
+                entry.insert(0, region)
+                entry.pack(side=tk.LEFT, padx=(5, 5))
+                self.region_entries.append(entry)
+
+            self.clear_button.pack_forget()  # Remove the old "清除" button
+
+            # Replace item buttons with entry boxes
+            for i, btn in enumerate(self.item_buttons):
+                btn.pack_forget()
+                entry = tk.Entry(self.items_frame, font=("Arial", 12), width=4)
+                entry.insert(0, self.items[i])
+                entry.pack(side=tk.LEFT, padx=5)
+                self.item_buttons[i] = entry
+        else:
+            self.settings_button.config(text="設定")
+            self.copy_button.config(state=tk.NORMAL)  # Enable the "複製結果" button
+
+            # Save changes and restore region buttons
+            self.backspace_button.pack_forget()
+            self.region214 = [entry.get() for entry in self.region_entries]
+            for entry in self.region_entries:
+                entry.pack_forget()
+
+            self.region_buttons = []
+            for region in self.region214:
+                btn = tk.Button(self.mode_frame, text=region, font=("Arial", 14), width=8, command=lambda r=region: self.set_mode(r))
+                btn.pack(side=tk.LEFT, padx=(5, 5))
+                self.region_buttons.append(btn)
+
+            # Add the "清除" button to the right of the last region button
+            self.clear_button = tk.Button(self.mode_frame, text="清除", font=("Arial", 14), width=5, bg="red", fg="white", command=self.clear_all)
+            self.clear_button.pack(side=tk.LEFT, padx=(50, 5))
+
+            # Save changes and restore item buttons
+            for i, entry in enumerate(self.item_buttons):
+                self.items[i] = entry.get()
+                entry.pack_forget()
+                btn = tk.Button(self.items_frame, text=self.items[i], font=("Arial", 12), width=4, command=lambda i=self.items[i]: self.add_item(i))
+                btn.pack(side=tk.LEFT, padx=5)
+                self.item_buttons[i] = btn
+            self.backspace_button = tk.Button(self.items_frame, text="倒退", font=("Arial", 12), command=self.backspace)
+            self.backspace_button.pack(side=tk.LEFT, padx=5)
 
 if __name__ == "__main__":
     root = tk.Tk()
