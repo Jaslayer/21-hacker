@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from PIL import Image, ImageTk  # 用於顯示圖片
 
 class ModeApp:
     def __init__(self, root):
@@ -12,19 +13,137 @@ class ModeApp:
         self.tab_control = ttk.Notebook(root)
 
         # Create tabs
+        self.tab_212r1 = ttk.Frame(self.tab_control)
         self.tab_212r2 = ttk.Frame(self.tab_control)
         self.tab_214r2 = ttk.Frame(self.tab_control)
 
+        self.tab_control.add(self.tab_212r1, text='小抄')
         self.tab_control.add(self.tab_212r2, text='212R2')
         self.tab_control.add(self.tab_214r2, text='214R2')
 
         self.tab_control.pack(expand=1, fill='both')
+        self.tab_control.select(self.tab_212r2)
+
+        # Initialize the 212R1 functionality
+        self.mode_app_note = ModeAppTabNote(self.tab_212r1)
 
         # Initialize the 212R2 functionality
-        self.mode_app = ModeAppTab212(self.tab_212r2)
+        self.mode_app_212r2 = ModeAppTab212(self.tab_212r2)
 
         # Initialize the 214R2 functionality
-        self.mode_app_214 = ModeAppTab214(self.tab_214r2)
+        self.mode_app_214r2 = ModeAppTab214(self.tab_214r2)
+
+        # Bind event to reload image when switching to 212R1 tab
+        self.tab_control.bind("<<NotebookTabChanged>>", self.on_tab_changed)
+
+    def on_tab_changed(self, event):
+        # Check if the selected tab is 212R1
+        selected_tab = self.tab_control.index(self.tab_control.select())
+        if selected_tab == 0:  # 212R1 is the first tab
+            self.mode_app_note.load_image()
+
+import os  # 用於掃描目錄
+
+class ModeAppTabNote:
+    def __init__(self, frame):
+        self.frame = frame
+
+        # 初始化圖片列表與當前索引
+        self.image_dir = os.path.dirname(os.path.abspath(__file__))  # 執行檔所在目錄
+        self.image_files = []
+        self.current_index = 0
+
+        # 主框架，用於放置圖片
+        self.main_frame = tk.Frame(frame)
+        self.main_frame.pack(expand=True, fill='both')
+
+        # 圖片顯示區域
+        self.image_label = tk.Label(self.main_frame)
+        self.image_label.pack(expand=True, fill='both')
+
+        # 上下頁按鈕
+        self.prev_button = tk.Button(self.main_frame, text="▲", font=("Arial", 14), bg="black", fg="white", command=self.show_prev_image)
+        self.next_button = tk.Button(self.main_frame, text="▼", font=("Arial", 14), bg="black", fg="white", command=self.show_next_image)
+
+        # 綁定滑鼠進入和離開事件
+        self.main_frame.bind("<Enter>", self.show_buttons)
+        self.main_frame.bind("<Leave>", self.delayed_hide_buttons)
+
+        # 隱藏按鈕初始狀態
+        self.buttons_visible = False  # 標誌按鈕是否可見
+        self.hide_buttons(None)
+
+        # 綁定視窗大小調整事件
+        self.frame.bind("<Configure>", self.on_resize)
+
+    def show_buttons(self, event):
+        # 顯示按鈕，使用 place 方法定位在圖片左側
+        if not self.buttons_visible:
+            self.prev_button.place(relx=0.02, rely=0.4, anchor="center")
+            self.next_button.place(relx=0.02, rely=0.6, anchor="center")
+            self.buttons_visible = True
+
+    def hide_buttons(self, event):
+        # 隱藏按鈕
+        if self.buttons_visible:
+            self.prev_button.place_forget()
+            self.next_button.place_forget()
+            self.buttons_visible = False
+
+    def delayed_hide_buttons(self, event):
+        # 延遲隱藏按鈕，避免滑鼠快速移動到按鈕上時觸發
+        self.frame.after(200, lambda: self.hide_buttons(event))
+
+    def load_image(self):
+        # 每次重新掃描執行檔所在目錄
+        self.image_files = [f for f in os.listdir(self.image_dir) if f.endswith(".png")]
+        self.current_index = 0  # 重置索引
+
+        if not self.image_files:
+            self.image_label.config(text="在同資料夾下放至png檔即可查看小抄", font=("Arial", 12), fg="red")
+            return
+
+        self.display_image()
+
+    def display_image(self):
+        try:
+            # 開啟當前索引的圖片
+            image_path = os.path.join(self.image_dir, self.image_files[self.current_index])
+            image = Image.open(image_path)
+
+            # 獲取框架大小
+            frame_width = self.frame.winfo_width()
+            frame_height = self.frame.winfo_height()
+
+            # 確保框架大小有效
+            if frame_width <= 1 or frame_height <= 1:
+                frame_width, frame_height = 700, 260  # 預設大小
+
+            # 調整圖片大小以適應框架
+            image.thumbnail((frame_width, frame_height), Image.Resampling.LANCZOS)
+
+            # 轉換為 Tkinter 可用的格式
+            self.tk_image = ImageTk.PhotoImage(image)
+            self.image_label.config(image=self.tk_image)
+        except Exception as e:
+            self.image_label.config(text=f"無法載入圖片：{e}", font=("Arial", 12), fg="red")
+
+    def show_prev_image(self):
+        # 切換到上一張圖片
+        if self.image_files:
+            self.current_index = (self.current_index - 1) % len(self.image_files)
+            self.display_image()
+
+    def show_next_image(self):
+        # 切換到下一張圖片
+        if self.image_files:
+            self.current_index = (self.current_index + 1) % len(self.image_files)
+            self.display_image()
+
+    def on_resize(self, event):
+        # 當框架大小改變時重新載入圖片
+        if self.image_files:
+            self.display_image()
 
 class ModeAppTab212:
     def __init__(self, frame):
@@ -408,3 +527,5 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = ModeApp(root)
     root.mainloop()
+
+# pyinstaller --onefile --noconsole --noupx --name=21-hacker --icon=icon.ico 21-hacker.py
