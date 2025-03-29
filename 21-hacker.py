@@ -1,7 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk  # 用於顯示圖片
-
+import os  # 用於掃描目錄
+import sys  # 用於檢查 PyInstaller 執行時的臨時目錄
 class ModeApp:
     def __init__(self, root):
         self.root = root
@@ -42,14 +43,17 @@ class ModeApp:
         if selected_tab == 0:  # 212R1 is the first tab
             self.mode_app_note.load_image()
 
-import os  # 用於掃描目錄
 
 class ModeAppTabNote:
     def __init__(self, frame):
         self.frame = frame
 
         # 初始化圖片列表與當前索引
-        self.image_dir = os.path.dirname(os.path.abspath(__file__))  # 執行檔所在目錄
+        if getattr(sys, 'frozen', False):
+            self.image_dir = os.path.dirname(sys.executable)
+        elif __file__:
+            self.image_dir = os.path.dirname(__file__)
+
         self.image_files = []
         self.current_index = 0
 
