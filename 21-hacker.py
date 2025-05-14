@@ -153,6 +153,7 @@ class ModeAppTab212:
         self.sequence = []
         self.edit_mode = False  # Track if in edit mode
         self.item_buttons = []  # Store item buttons for dynamic updates
+        self.clear_clipboard_timer = None  # 初始化計時器變數
 
         # Initialize region212 and items from default.txt
         self.region212, self.items = self.load_settings()
@@ -255,6 +256,7 @@ class ModeAppTab212:
             self.update_sequence_label()
         else:
             self.message_label.config(text="最多只能輸入12個物品！", fg="red")
+            self.empty_clipboard()
 
     def backspace(self):
         if self.sequence:
@@ -272,6 +274,7 @@ class ModeAppTab212:
     def copy_to_clipboard(self):
         if not self.mode:
             self.message_label.config(text="請先選擇區域！", fg="red")
+            self.empty_clipboard()
             return
 
         # Count the number of "X" placeholders in the format string
@@ -280,6 +283,7 @@ class ModeAppTab212:
 
         if len(self.sequence) < x_count:
             self.message_label.config(text=f"請至少輸入{x_count}個物品！", fg="red")
+            self.empty_clipboard()
             return
 
         # Format the result using the entered sequence
@@ -289,11 +293,22 @@ class ModeAppTab212:
         self.frame.update()  # Update clipboard
         self.message_label.config(text="結果已複製到剪貼簿！", fg="green")
 
+        # Schedule clear_all after 1.5 minutes (90,000 ms)
+        if self.clear_clipboard_timer:
+            self.frame.after_cancel(self.clear_clipboard_timer)
+        self.clear_clipboard_timer = self.frame.after(90000, self.clear_all)
+
+    def empty_clipboard(self):
+        self.frame.clipboard_clear()
+        self.frame.clipboard_append("")
+        self.frame.update()  # Update clipboard
+
     def clear_all(self):      
         self.mode = None
         self.sequence = []
         self.update_mode_buttons()
         self.update_sequence_label()
+        self.empty_clipboard()
         self.message_label.config(text="已清除所有內容！", fg="green")
 
     def toggle_edit_mode(self):
